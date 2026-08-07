@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Chesapeake Curling Draw Manager</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx/dist/xlsx.full.min.js"></script>
+<style>
+body{
+  font-family:Arial; 
+  background:url("background.png") center center fixed;
+  background-size:cover;
+  color:white;
+  margin:20px;
+  position:relative;
+}
+.section{
+  background:rgba(20,93,160,0.75);
+  padding:15px;
+  margin-bottom:20px;
+  border-radius:8px;
+}
+.team{
+  background:rgba(30,129,176,0.75);
+  padding:10px;
+  margin:10px;
+  border-radius:6px;
+  display:inline-block;
+  width:260px;
+  vertical-align:top;
+}
+.player{
+  background:#bee9e8;
+  color:black;
+  padding:4px;
+  margin:4px;
+  border-radius:4px;
+}
+.sheet{
+  background:rgba(8,61,119,0.75);
+  padding:10px;
+  margin:6px;
+  border-radius:6px;
+}
+button{
+  padding:6px;
+  margin:4px;
+}
+table{
+  border-collapse:collapse;
+}
+td,th{
+  border:1px solid white;
+  padding:6px;
+}
+input, select{
+  margin:2px;
+}
+.header{
+  position:relative;
+  text-align:center;
+  margin-bottom:20px;
+}
+.logo{
+  width:200px;
+  opacity:0.4;
+  display:block;
+  margin:0 auto;
+}
+h1{
+  position:absolute;
+  top:50%;
+  left:50%;
+  transform:translate(-50%, -50%);
+  color:white;
+  text-shadow:
+    -2px -2px 0 #06233f,
+    2px -2px 0 #06233f,
+    -2px 2px 0 #06233f,
+    2px 2px 0 #06233f,
+    0 0 5px rgba(0,0,0,0.5);
+  margin:0;
+}
+</style>
+</head>
+<body>
+
+<div class="header">
+  <img src="logo.png" class="logo" alt="Logo">
+  <h1>Men With Brooms</h1>
+</div>
+
+<div class="section">
+  <button onclick="loadWorkbook()">Load Excel</button>
+  <button onclick="saveWorkbook()">Save Workbook</button>
+</div>
+
+<div class="section">
+  <h2>Check-In</h2>
+  <select id="curlerSelect"></select>
+  <button onclick="checkIn()">Check In</button>
+  <ul id="checkins"></ul>
+</div>
+
+<div class="section">
+  <h2>Teams</h2>
+  <button onclick="generateTeams()">Generate Teams</button>
+  <div id="teams"></div>
+</div>
+
+<div class="section">
+  <h2>Late Add-On</h2>
+  <select id="lateCurlerSelect"></select>
+  <select id="teamSelect">
+    <option value="">Select Team</option>
+  </select>
+  <button onclick="addLateCurler()">Add to Team</button>
+</div>
+
+<div class="section">
+  <h2>Matchups</h2>
+  <div id="matchupInputs"></div>
+  <button onclick="recordAllResults()">Record All Results</button>
+</div>
+
+<div class="section">
+  <h2>Standings</h2>
+  <table id="standings"></table>
+</div>
+
+<div class="section">
+  <h2>Leaderboard (Top 10)</h2>
+  <div id="leaderboard"></div>
+</div>
+
+<script>
+let workbook, curlers=[], checkedIn=[], teams=[], matchups=[];
+
+// ===================== Excel Functions =====================
+function loadWorkbook(){
+  let input = document.createElement("input");
+  input.type = "file";
+  input.onchange = e => {
+    let reader = new FileReader();
+    reader.onload = evt => {
+      workbook = XLSX.read(evt.target.result, {type:'binary'});
+      curlers = XLSX.utils.sheet_to_json(workbook.Sheets["curlers"] || []);
+      curlers.forEach(c => { if(!c.player_id) c.player_id = c["Curler first name"]+"_"+c["Curler last name"]; });
+      populateCurlers();
+      createCheckinList();
+      populateLateAddOns();
+      updateStandings();
+    };
+    reader.readAsBinaryString(e.target.files[0]);
+  };
+  input.click();
+}
+
+function saveWorkbook(){
+  if(!workbook){ alert("No workbook loaded."); return; }
+  let sheetData = curlers.map(c => ({ ...c, preferred_position: c.preferred_position || "" }));
+  workbook.Sheets["curlers"] = XLSX.utils.json_to_sheet(sheetData);
+  XLSX.writeFile(workbook,"MenWithBrooms.xlsx");
+  alert("Workbook saved successfully!");
+}
+
+// ===================== Check-In =====================
+function populateCurlers() {
+    let select = document.getElementById("curlerSelect");
+    select.innerHTML = "";
+
+    let today = new Date().toLocaleDateString();
+
+    curlers.forEach((c, i) => {
+        // Check if already checked in today
+        let alreadyCheckedToday = checkedIn.some(ci => ci.player_id === c.player_id && ci.date === today);
+
+        let option = document.createElement("option");
+        option.value = i;
+        option.text = c["Curler first name"] + " " + c["Curler last name"];
+        if (alreadyCheckedToday) {
+            option.text += " (Checked In)";
+            option.disabled = true; // prevent re-checking
+        }
+        select.add(option);
+    });
+}
+
+function createCheckinList() {
+    let ul = document.getElementById("checkins");
+    ul.innerHTML = "";
+
+    checkedIn.forEach((p, i) => {
+        let li = document.createElement("li");
+        li.innerText = p["Curler first name"] + " " + p["Curler last name"] + " "; // position label optional
+
+        // --- Remove button ---
+        let btn = document.createElement("button");
+        btn.innerText = "Remove";
+        btn.onclick = () => {
+            checkedIn.splice(i, 1);
+            li.remove();
+            renderTeams();
+            createMatchups();
+            renderMatchupInputs();
+            populateLateAddOns();
+        };
+        li.appendChild(btn);
+
+        // --- Position select dropdown ---
+        let posSelect = document.createElement("select");
+        ["Skip", "Vice", "Second", "Lead"].forEach(role => {
+            let o = document.createElement("option");
+            o.value = role;
+            o.text = role;
+            if (p.preferred_position === role) o.selected = true;
+            posSelect.add(o);
+        });
+
+        posSelect.onchange = () => {
+            p.preferred_position = posSelect.value;
+            // Update master list in curlers sheet
+            let master = curlers.find(c => c.player_id === p.player_id);
+            if (master) master.preferred_position = posSelect.value;
+            renderTeams();
+        };
+        li.appendChild(posSelect);
+
+        ul.appendChild(li);
+    });
+}
+
+function checkIn(){
+  let p = curlers[document.getElementById("curlerSelect").value];
+  let today = new Date().toLocaleDateString();
+  if(checkedIn.some(c=>c.player_id===p.player_id && c.date===today)){ alert(p["Curler first name"]+" "+p["Curler last name"]+" already checked in"); return; }
+  let curlerCheckIn = {...p, date: today};
+  checkedIn.push(curlerCheckIn);
+  let sheetData = XLSX.utils.sheet_to_json(workbook.Sheets["sign_in_time"] || []);
+  sheetData.push({date:today, time: new Date().toLocaleTimeString(), player_id:p.player_id,"Curler first name":p["Curler first name"],"Curler last name":p["Curler last name"]});
+  workbook.Sheets["sign_in_time"] = XLSX.utils.json_to_sheet(sheetData);
+  createCheckinList();
+  populateLateAddOns();
+  populateCurlers();
+}
+
+// ===================== Late Add-On Functions =====================
+function populateLateAddOns() {
+    let lateSelect = document.getElementById("lateCurlerSelect");
+    lateSelect.innerHTML = "";
+
+    // Show curlers who are not yet checked in today
+    let today = new Date().toLocaleDateString();
+    curlers.forEach((c, i) => {
+        let alreadyCheckedToday = checkedIn.some(ci => ci.player_id === c.player_id && ci.date === today);
+        if (!alreadyCheckedToday) {
+            let o = document.createElement("option");
+            o.value = i;
+            o.text = c["Curler first name"] + " " + c["Curler last name"];
+            lateSelect.add(o);
+        }
+    });
+
+    // Populate Team dropdown with only teams that have <4 players
+    let teamSelect = document.getElementById("teamSelect");
+    teamSelect.innerHTML = '<option value="">Select Team</option>';
+    teams.forEach((t, i) => {
+        if (t.length < 4) {
+            let o = document.createElement("option");
+            o.value = i;
+            o.text = "Team " + (i + 1);
+            teamSelect.add(o);
+        }
+    });
+}
+
+function addLateCurler() {
+    let curlerIdx = document.getElementById("lateCurlerSelect").value;
+    let teamIdx = document.getElementById("teamSelect").value;
+
+    if (curlerIdx === "" || teamIdx === "") {
+        alert("Select a player and a team.");
+        return;
+    }
+
+    let p = curlers[curlerIdx];
+    let today = new Date().toLocaleDateString();
+
+    // Add to checkedIn if not already
+    if (!checkedIn.some(c => c.player_id === p.player_id)) {
+        checkedIn.push({...p, date: today});
+    }
+
+    // Ensure the team exists
+    if (!teams[teamIdx]) teams[teamIdx] = [];
+
+    // Add player to the team with role "Late Add-on"
+    let newPlayer = {...p, role: "Late Add-on"};
+    teams[teamIdx].push(newPlayer);
+
+    // Assign missing positions for other team members
+    assignPositions(teams[teamIdx]);
+
+    // Sort team so "Late Add-on" players appear at the end
+    teams[teamIdx].sort((a, b) => (a.role === "Late Add-on") ? 1 : (b.role === "Late Add-on") ? -1 : 0);
+
+    // --- REFRESH ALL PANELS ---
+    renderTeams();            // rebuild Teams panel
+    createMatchups();         // rebuild matchups array
+    renderMatchupInputs();    // redraw Matchups panel
+    createCheckinList();      // update Check-In list
+    populateLateAddOns();     // update Late Add-On dropdowns
+}
+
+
+// ===================== Team Generation =====================
+function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
+
+function assignPositions(team){
+  let roles=["Skip","Vice","Second","Lead"];
+  let assigned=[];
+  roles.forEach(role=>{
+    let player=team.find(p=>p.preferred_position==role && !assigned.includes(p));
+    if(player){player.role=role; assigned.push(player);}
+  });
+  roles.forEach(role=>{
+    if(!team.some(p=>p.role==role)){
+      let player=team.find(p=>p.secondary_position==role && !assigned.includes(p));
+      if(player){player.role=role; assigned.push(player);}
+    }
+  });
+  roles.forEach(role=>{
+    if(!team.some(p=>p.role==role)){
+      let player=team.find(p=>!p.role);
+      if(player) player.role=role;
+    }
+  });
+}
+
+function generateTeams(){
+  if(checkedIn.length<1){ alert("No players checked in!"); return; }
+  shuffle(checkedIn); teams=[]; matchups=[];
+  const mapping={1:[[1]],2:[[1,1]],3:[[2,1]],4:[[2,2]],5:[[3,2]],6:[[3,3]],7:[[4,3]],8:[[4,4]],9:[[3,2],[2,2]],10:[[3,3],[2,2]],11:[[3,3],[3,2]],12:[[3,3],[3,3]],13:[[4,3],[3,3]],14:[[4,4],[3,3]],15:[[4,4],[4,3]],16:[[4,4],[4,4]],17:[[3,3],[3,3],[3,2]],18:[[3,3],[3,3],[3,3]],19:[[4,3],[3,3],[3,3]],20:[[4,4],[3,3],[3,3]],21:[[4,4],[4,3],[3,3]],22:[[4,4],[4,4],[3,3]],23:[[4,4],[4,4],[4,3]],24:[[4,4],[4,4],[4,4]]};
+  let splits=mapping[checkedIn.length]; let idx=0; splits.forEach(gameSplit=>{
+    gameSplit.forEach(teamSize=>{
+      let teamPlayers=checkedIn.slice(idx,idx+teamSize); idx+=teamSize; assignPositions(teamPlayers); teams.push(teamPlayers);
+    });
+  });
+  renderTeams();
+  createMatchups();
+  renderMatchupInputs();
+  populateLateAddOns();
+}
+
+// ===================== Teams Panel =====================
+function renderTeams() {
+    let div = document.getElementById("teams");
+    div.innerHTML = "";
+    teams.forEach((team, i) => {
+        let d = document.createElement("div");
+        d.className = "team";
+        assignPositions(team);
+        d.innerHTML = "<h3>Team " + (i + 1) + "</h3>";
+
+        // Show players in order, "Late Add-on" always last
+        let ordered = [...team].sort((a, b) => (a.role === "Late Add-on") ? 1 : (b.role === "Late Add-on") ? -1 : 0);
+        ordered.forEach(p => {
+            let pl = document.createElement("div");
+            pl.className = "player";
+            pl.innerText = p["Curler first name"] + " " + p["Curler last name"] + " (" + p.role + ")";
+            d.appendChild(pl);
+        });
+
+        div.appendChild(d);
+    });
+}
+
+// ===================== Matchups Panel =====================
+function createMatchups() {
+    matchups = [];
+    let sheets = ["A", "B", "C"];
+    for (let i = 0; i < teams.length; i += 2) {
+        if (teams[i + 1]) {
+            matchups.push({sheet: sheets[(i / 2) % 3], team1: i, team2: i + 1});
+        }
+    }
+}
+
+function renderMatchupInputs() {
+    let div = document.getElementById("matchupInputs");
+    div.innerHTML = "";
+    matchups.forEach((m, idx) => {
+        let block = document.createElement("div");
+        block.className = "sheet";
+        block.innerHTML = "<h3>Match " + (idx + 1) + " - Sheet " + m.sheet + "</h3>";
+
+        ["team1", "team2"].forEach(t => {
+            let teamIdx = (t === "team1" ? m.team1 : m.team2);
+            let teamDiv = document.createElement("div");
+            teamDiv.innerHTML = "<strong>Team " + (teamIdx + 1) + "</strong><br>";
+            ["Skip", "Vice", "Second", "Lead"].forEach(role => {
+                let p = teams[teamIdx].find(x => x.role === role || x.role === "Late Add-on");
+                if (p) teamDiv.innerHTML += p["Curler first name"] + " " + p["Curler last name"] + " (" + p.role + ")<br>";
+            });
+            block.appendChild(teamDiv);
+        });
+
+        block.innerHTML += "Result Team 1: <select id='res1_" + idx + "'><option value='W'>Win</option><option value='L'>Loss</option><option value='T'>Tie</option></select>";
+        block.innerHTML += " Ends Won Team 1: <input id='ends1_" + idx + "' type='number' min='0' style='width:50px'>";
+        block.innerHTML += " Score Team 1: <input id='score1_" + idx + "' type='number' min='0' style='width:50px'><br>";
+        block.innerHTML += "<label><input type='checkbox' id='forfeit1_" + idx + "'> Forfeit</label> End: <input id='forfeitEnd_" + idx + "' type='number' min='1' max='10' style='width:50px'><br>";
+        block.innerHTML += "Opponent Points: <input id='opponentScore_" + idx + "' type='number' min='0' style='width:50px'><br>";
+
+        div.appendChild(block);
+    });
+}
+
+// ===================== Record Results =====================
+function getPoints(result, ends){ return (result==="W"?5:(result==="T"?2.5:0)) + ends*0.25; }
+
+function recordAllResults(){
+  if(!workbook){ alert("Load Excel first!"); return; }
+  if(!confirm("Are you sure all results are correct?")) return;
+  let today = new Date().toLocaleDateString();
+  let scoring = XLSX.utils.sheet_to_json(workbook.Sheets["scoring"]||[]);
+  const defaultGameEnds = 8;
+  matchups.forEach((m,idx)=>{
+    let result1 = document.getElementById("res1_"+idx).value;
+    let ends1 = parseInt(document.getElementById("ends1_"+idx).value)||0;
+    let score1 = parseFloat(document.getElementById("score1_"+idx).value)||0;
+    let forfeit = document.getElementById("forfeit1_"+idx).checked;
+    let forfeitEnd = parseInt(document.getElementById("forfeitEnd_"+idx).value)||ends1;
+    let opponentScore = parseFloat(document.getElementById("opponentScore_"+idx).value)||0;
+
+    teams[m.team1].forEach(p=>{ scoring.push({date:today, team_number:m.team1+1, player_id:p.player_id, "Curler first name":p["Curler first name"], "Curler last name":p["Curler last name"], result_W_L_T:result1, ends_won:(forfeit?forfeitEnd:ends1), score:getPoints(result1,(forfeit?forfeitEnd:ends1))}); });
+    let opponentResult=(result1==="W")?"L":(result1==="L")?"W":"T";
+    let opponentEnds=(forfeit?forfeitEnd:defaultGameEnds-ends1);
+    teams[m.team2].forEach(p=>{ scoring.push({date:today, team_number:m.team2+1, player_id:p.player_id, "Curler first name":p["Curler first name"], "Curler last name":p["Curler last name"], result_W_L_T:opponentResult, ends_won:opponentEnds, score:getPoints(opponentResult,opponentEnds)}); });
+  });
+  workbook.Sheets["scoring"]=XLSX.utils.json_to_sheet(scoring);
+  updateStandings();
+  alert("Results recorded successfully!");
+}
+
+// ===================== Standings =====================
+function updateStandings(){
+  if(!workbook) return;
+  let scoring=XLSX.utils.sheet_to_json(workbook.Sheets["scoring"]||[]);
+  let stats={};
+  scoring.forEach(r=>{
+    let pid=r.player_id;
+    if(!stats[pid]) stats[pid]={W:0,L:0,T:0,Ends:0,name:r["Curler first name"]+" "+r["Curler last name"]};
+    if(r.result_W_L_T==="W") stats[pid].W++;
+    else if(r.result_W_L_T==="L") stats[pid].L++;
+    else if(r.result_W_L_T==="T") stats[pid].T++;
+    stats[pid].Ends += r.ends_won;
+  });
+
+  let table=document.getElementById("standings");
+  table.innerHTML="<tr><th>Player</th><th>W</th><th>L</th><th>T</th><th>Ends</th><th>Score</th></tr>";
+  Object.values(stats).forEach(s=>{
+    let totalScore = s.W*5 + s.T*2.5 + s.Ends*0.25;
+    let row = table.insertRow();
+    row.insertCell().innerText = s.name;
+    row.insertCell().innerText = s.W;
+    row.insertCell().innerText = s.L;
+    row.insertCell().innerText = s.T;
+    row.insertCell().innerText = s.Ends;
+    row.insertCell().innerText = totalScore.toFixed(2);
+  });
+
+  let lb=document.getElementById("leaderboard");
+  let topPlayers = Object.values(stats).sort((a,b)=> (b.W*5+b.T*2.5+b.Ends*0.25) - (a.W*5+a.T*2.5+a.Ends*0.25)).slice(0,10);
+  lb.innerHTML = "<ol>" + topPlayers.map(s=>"<li>"+s.name+": "+(s.W*5+s.T*2.5+s.Ends*0.25).toFixed(2)+" pts</li>").join("")+"</ol>";
+}
+</script>
+</body>
+</html>
