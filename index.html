@@ -393,36 +393,69 @@ function createMatchups() {
 }
 
 function renderMatchupInputs() {
+function renderMatchupInputs() {
     let div = document.getElementById("matchupInputs");
     div.innerHTML = "";
+
     matchups.forEach((m, idx) => {
         let block = document.createElement("div");
         block.className = "sheet";
+
         block.innerHTML = "<h3>Match " + (idx + 1) + " - Sheet " + m.sheet + "</h3>";
 
         ["team1", "team2"].forEach(t => {
             let teamIdx = (t === "team1" ? m.team1 : m.team2);
+
             let teamDiv = document.createElement("div");
             teamDiv.innerHTML = "<strong>Team " + (teamIdx + 1) + "</strong><br>";
+
             ["Skip", "Vice", "Second", "Lead"].forEach(role => {
-                let p = teams[teamIdx].find(x => x.role === role || x.role === "Late Add-on");
-                if (p) teamDiv.innerHTML += p["Curler first name"] + " " + p["Curler last name"] + " (" + p.role + ")<br>";
+                let p = teams[teamIdx].find(
+                    x => x.role === role || x.role === "Late Add-on"
+                );
+
+                if (p) {
+                    teamDiv.innerHTML +=
+                        p["Curler first name"] + " " +
+                        p["Curler last name"] +
+                        " (" + p.role + ")<br>";
+                }
             });
+
             block.appendChild(teamDiv);
         });
 
-      //Error with generated team # fixed on 20260807_19:17
-        //block.innerHTML += "Result Team 1: <select id='res1_" + idx + "'><option value='W'>Win</option><option value='L'>Loss</option><option value='T'>Tie</option></select>";
-        //block.innerHTML += " Ends Won Team 1: <input id='ends1_" + idx + "' type='number' min='0' style='width:50px'>";
-        //block.innerHTML += " Score Team 1: <input id='score1_" + idx + "' type='number' min='0' style='width:50px'><br>";
-        //block.innerHTML += "<label><input type='checkbox' id='forfeit1_" + idx + "'> Forfeit</label> End: <input id='forfeitEnd_" + idx + "' type='number' min='1' max='10' style='width:50px'><br>";
-        //block.innerHTML += "Opponent Points: <input id='opponentScore_" + idx + "' type='number' min='0' style='width:50px'><br>";
-        block.innerHTML += "Result Team " + (m.team1 + 1) + ": <select id='res1_" + idx + "'><option value='W'>Win</option><option value='L'>Loss</option><option value='T'>Tie</option></select>";
-        block.innerHTML += " Ends Won Team " + (m.team1 + 1) + ": <input id='ends1_" + idx + "' type='number' min='0' style='width:50px'>";
-        block.innerHTML += " Score Team " + (m.team1 + 1) + ": <input id='score1_" + idx + "' type='number' min='0' style='width:50px'><br>";
-        block.innerHTML += "<label><input type='checkbox' id='forfeit1_" + idx + "'> Forfeit</label> End: <input id='forfeitEnd_" + idx + "' type='number' min='1' max='10' style='width:50px'><br>";
-        block.innerHTML += "Opponent Points: <input id='opponentScore_" + idx + "' type='number' min='0' style='width:50px'><br>";
-      
+        // Use the actual first team number for this matchup
+        let resultTeamNumber = m.team1 + 1;
+
+        block.innerHTML +=
+            "Result Team " + resultTeamNumber +
+            ": <select id='res1_" + idx + "'>" +
+            "<option value='W'>Win</option>" +
+            "<option value='L'>Loss</option>" +
+            "<option value='T'>Tie</option>" +
+            "</select>";
+
+        block.innerHTML +=
+            " Ends Won Team " + resultTeamNumber +
+            ": <input id='ends1_" + idx +
+            "' type='number' min='0' style='width:50px'>";
+
+        block.innerHTML +=
+            " Score Team " + resultTeamNumber +
+            ": <input id='score1_" + idx +
+            "' type='number' min='0' style='width:50px'><br>";
+
+        block.innerHTML +=
+            "<label><input type='checkbox' id='forfeit1_" + idx +
+            "'> Forfeit</label> End: " +
+            "<input id='forfeitEnd_" + idx +
+            "' type='number' min='1' max='10' style='width:50px'><br>";
+
+        block.innerHTML +=
+            "Opponent Points: <input id='opponentScore_" + idx +
+            "' type='number' min='0' style='width:50px'><br>";
+
         div.appendChild(block);
     });
 }
