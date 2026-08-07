@@ -322,58 +322,80 @@ function addLateCurler() {
 // ===================== Team Generation =====================
 function shuffle(a){for(let i=a.length-1;i>0;i--){let j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]];}}
 
-function assignPositions(team){
-  let roles=["Lead", "Second", "Vice", "Skip"];
-  let assigned=[];
-  roles.forEach(role=>{
-    let player=team.find(p=>p.preferred_position==role && !assigned.includes(p));
-    if(player){player.role=role; assigned.push(player);}
-  });
-  roles.forEach(role=>{
-    if(!team.some(p=>p.role==role)){
-      let player=team.find(p=>p.secondary_position==role && !assigned.includes(p));
-      if(player){player.role=role; assigned.push(player);}
-    }
-  });
-  roles.forEach(role=>{
-    if(!team.some(p=>p.role==role)){
-      let player=team.find(p=>!p.role);
-      if(player) player.role=role;
-    }
-  });
+//function assignPositions(team){
+//  let roles=["Skip","Vice","Second","Lead"];
+//  let assigned=[];
+//  roles.forEach(role=>{
+//    let player=team.find(p=>p.preferred_position==role && !assigned.includes(p));
+//    if(player){player.role=role; assigned.push(player);}
+//  });
+//  roles.forEach(role=>{
+//    if(!team.some(p=>p.role==role)){
+//      let player=team.find(p=>p.secondary_position==role && !assigned.includes(p));
+//      if(player){player.role=role; assigned.push(player);}
+//    }
+//  });
+//  roles.forEach(role=>{
+//    if(!team.some(p=>p.role==role)){
+//      let player=team.find(p=>!p.role);
+//      if(player) player.role=role;
+//    }
+//  });
+//}
+function assignPositions(team) {
+    let roles = ["Lead", "Second", "Vice", "Skip"];
+    let assigned = [];
+
+    roles.forEach(role => {
+        let player = team.find(p =>
+            p.locked_position === role && !assigned.includes(p)
+        );
+
+        if (player) {
+            player.role = role;
+            assigned.push(player);
+        }
+    });
+
+    roles.forEach(role => {
+        let player = team.find(p =>
+            !assigned.includes(p) &&
+            p.preferred_position === role
+        );
+
+        if (player) {
+            player.role = role;
+            assigned.push(player);
+        }
+    });
+
+    roles.forEach(role => {
+        if (!team.some(p => p.role === role)) {
+            let player = team.find(p =>
+                !assigned.includes(p) &&
+                p.secondary_position === role
+            );
+
+            if (player) {
+                player.role = role;
+                assigned.push(player);
+            }
+        }
+    });
+
+    roles.forEach(role => {
+        if (!team.some(p => p.role === role)) {
+            let player = team.find(p =>
+                !assigned.includes(p)
+            );
+
+            if (player) {
+                player.role = role;
+                assigned.push(player);
+            }
+        }
+    });
 }
-//function assignPositions(team) {
-//    let roles = ["Lead", "Second", "Vice", "Skip"];
-//    let assigned = [];
-//
-//    roles.forEach(role => {
-//        let player = team.find(p =>
-//            p.locked_position === role && !assigned.includes(p));
-//        if (player) {
-//            player.role = role;
-//            assigned.push(player);}});
-//    roles.forEach(role => {
-//        let player = team.find(p =>
-//            !assigned.includes(p) &&
-//            p.preferred_position === role);
-//        if (player) {
-//            player.role = role;
-//            assigned.push(player);}});
-//    roles.forEach(role => {
-//        if (!team.some(p => p.role === role)) {
-//            let player = team.find(p =>
-//                !assigned.includes(p) &&
-//                p.secondary_position === role);
-//            if (player) {
-//                player.role = role;
-//                assigned.push(player);}}});
-//    roles.forEach(role => {
-//        if (!team.some(p => p.role === role)) {
-//            let player = team.find(p =>
-//                !assigned.includes(p));
-//            if (player) {
-//                player.role = role;
-//                assigned.push(player);}}});}
 
 function generateTeams(){
   if(checkedIn.length<1){ alert("No players checked in!"); return; }
@@ -424,7 +446,6 @@ function createMatchups() {
     }
 }
 
-function renderMatchupInputs() {
 function renderMatchupInputs() {
     let div = document.getElementById("matchupInputs");
     div.innerHTML = "";
