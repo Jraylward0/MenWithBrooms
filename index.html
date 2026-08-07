@@ -215,7 +215,7 @@ function createCheckinList() {
 
         // --- Position select dropdown ---
         let posSelect = document.createElement("select");
-        ["Skip", "Vice", "Second", "Lead"].forEach(role => {
+        ["Lead", "Second", "Vice", "Skip"].forEach(role => {
             let o = document.createElement("option");
             o.value = role;
             o.text = role;
