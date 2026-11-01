@@ -80,6 +80,16 @@ h1{
     0 0 5px rgba(0,0,0,0.5);
   margin:0;
 }
+.site-credit {
+    position: fixed;
+    top: 15px;
+    right: 20px;
+    color: white;
+    font-size: 13px;
+    opacity: 0.8;
+    z-index: 1000;
+    text-shadow: 1px 1px 3px black;
+}
 
 /* Geographic access gate: the app remains hidden until location is verified. */
 body { visibility: hidden; }
@@ -111,6 +121,8 @@ body { visibility: hidden; }
 </head>
 <body>
 
+<div class="site-credit">Created by Jacob Aylward</div>
+  
 <div id="geoGate" role="status" aria-live="polite">
   <div class="geo-card">
     <h2>Verifying location</h2>
